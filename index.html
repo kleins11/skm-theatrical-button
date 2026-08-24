@@ -23,72 +23,20 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
     pointer-events: none;
-    background:
-      radial-gradient(ellipse 130% 95% at 50% 36%, #171040 0%, #0e0a28 38%, #070518 64%, #03020a 100%);
+    z-index: 1;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+  }
+  #galaxy.clipped {
     -webkit-clip-path: circle(0px at 50% 50%);
     clip-path: circle(0px at 50% 50%);
   }
   #galaxy.revealing {
-    transition: -webkit-clip-path 2500ms cubic-bezier(0.16, 1, 0.3, 1),
-                clip-path 2500ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .neb {
-    position: absolute;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    mix-blend-mode: screen;
-  }
-  #neb1 {
-    left: 26%;
-    top: 33%;
-    width: 72vmax;
-    height: 72vmax;
-    background: radial-gradient(circle at 50% 50%,
-      rgba(139, 92, 246, 0.26) 0%,
-      rgba(109, 40, 217, 0.14) 24%,
-      rgba(76, 29, 149, 0.05) 46%,
-      rgba(49, 20, 99, 0.015) 64%,
-      rgba(0, 0, 0, 0) 76%);
-  }
-  #neb2 {
-    left: 77%;
-    top: 73%;
-    width: 62vmax;
-    height: 62vmax;
-    background: radial-gradient(circle at 50% 50%,
-      rgba(45, 212, 191, 0.19) 0%,
-      rgba(20, 184, 166, 0.10) 26%,
-      rgba(13, 148, 136, 0.035) 48%,
-      rgba(8, 90, 84, 0.01) 66%,
-      rgba(0, 0, 0, 0) 78%);
-  }
-  #neb3 {
-    left: 62%;
-    top: 13%;
-    width: 44vmax;
-    height: 44vmax;
-    background: radial-gradient(circle at 50% 50%,
-      rgba(168, 85, 247, 0.14) 0%,
-      rgba(126, 34, 206, 0.07) 30%,
-      rgba(88, 28, 135, 0.02) 54%,
-      rgba(0, 0, 0, 0) 74%);
-  }
-  #stars {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
-  #stars i {
-    position: absolute;
-    display: block;
-    background: #ffffff;
-    border-radius: 50%;
+    transition: -webkit-clip-path 3500ms cubic-bezier(0.33, 1, 0.68, 1),
+                clip-path 3500ms cubic-bezier(0.33, 1, 0.68, 1);
   }
   button {
     position: relative;
@@ -111,86 +59,362 @@
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     box-shadow: 0 3px 1px -2px rgba(0,0,0,0.2), 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12);
   }
   button.dissolving {
     opacity: 0;
-    filter: blur(6px);
-    transition: opacity 1500ms cubic-bezier(0.33, 0, 0.67, 1),
-                filter 1500ms cubic-bezier(0.33, 0, 0.67, 1);
+    filter: blur(7px);
+    transition: opacity 2800ms cubic-bezier(0.4, 0, 0.6, 1) 250ms,
+                filter 2800ms cubic-bezier(0.4, 0, 0.6, 1) 250ms;
   }
 </style>
 </head>
 <body>
-<div id="galaxy">
-  <div class="neb" id="neb1"></div>
-  <div class="neb" id="neb2"></div>
-  <div class="neb" id="neb3"></div>
-  <div id="stars"></div>
-</div>
+<canvas id="galaxy"></canvas>
 <button type="button">Continue</button>
 <script>
 (function () {
-  var galaxy = document.getElementById('galaxy');
-  var stars = document.getElementById('stars');
+  var WAVE_COUNT = 5;
+  var STAGGER = 0.32;
+  var WAVE_DUR = 2.2;
+  var FREQ = 0.07;
+  var SHARP = 0.015;
+  var WARP_K = 0.07;
+  var GALAXY_DELAY = 320;
+  var GALAXY_DURATION = 3500;
+  var END = GALAXY_DELAY + GALAXY_DURATION + 400;
+  var TAU = Math.PI * 2;
+
+  var display = document.getElementById('galaxy');
   var button = document.querySelector('button');
 
-  var parts = [];
+  var off = document.createElement('canvas');
+  var ctx = off.getContext('2d');
+
+  var starData = [];
   for (var i = 0; i < 340; i++) {
-    var s = 0.5 + Math.random() * Math.random() * 2.1;
-    var o = 0.22 + Math.random() * 0.78;
-    var x = Math.random() * 100;
-    var y = Math.random() * 100;
-    var glow = s > 1.75
-      ? ';box-shadow:0 0 ' + (s * 2.4).toFixed(2) + 'px ' + (s * 0.5).toFixed(2) + 'px rgba(255,255,255,0.55)'
-      : '';
-    parts.push(
-      '<i style="left:' + x.toFixed(3) + '%;top:' + y.toFixed(3) + '%;width:' +
-      s.toFixed(2) + 'px;height:' + s.toFixed(2) + 'px;opacity:' + o.toFixed(2) + glow + '"></i>'
-    );
+    starData.push({
+      x: Math.random(),
+      y: Math.random(),
+      s: 0.5 + Math.random() * Math.random() * 2.1,
+      o: 0.22 + Math.random() * 0.78
+    });
   }
-  stars.innerHTML = parts.join('');
+
+  function bloom(w, h, cx, cy, radius, stops) {
+    var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    for (var k = 0; k < stops.length; k++) {
+      g.addColorStop(stops[k][0], 'rgba(' + stops[k][1] + ',' + stops[k][2] + ')');
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawGalaxy(w, h) {
+    var vmax = Math.max(w, h);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#03020a';
+    ctx.fillRect(0, 0, w, h);
+
+    var bx = w * 0.5;
+    var by = h * 0.36;
+    var rx = w * 1.30;
+    var sy = (h * 0.95) / rx;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.scale(1, sy);
+    var base = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    base.addColorStop(0, '#171040');
+    base.addColorStop(0.38, '#0e0a28');
+    base.addColorStop(0.64, '#070518');
+    base.addColorStop(1, '#03020a');
+    ctx.fillStyle = base;
+    ctx.fillRect(-bx, -by / sy, w, h / sy);
+    ctx.restore();
+
+    ctx.globalCompositeOperation = 'screen';
+    bloom(w, h, w * 0.26, h * 0.33, vmax * 0.36, [
+      [0, '139,92,246', 0.26], [0.34, '109,40,217', 0.14],
+      [0.65, '76,29,149', 0.05], [0.90, '49,20,99', 0.015], [1, '49,20,99', 0]
+    ]);
+    bloom(w, h, w * 0.77, h * 0.73, vmax * 0.31, [
+      [0, '45,212,191', 0.19], [0.34, '20,184,166', 0.10],
+      [0.65, '13,148,136', 0.035], [0.90, '8,90,84', 0.01], [1, '8,90,84', 0]
+    ]);
+    bloom(w, h, w * 0.62, h * 0.13, vmax * 0.22, [
+      [0, '168,85,247', 0.14], [0.39, '126,34,206', 0.07],
+      [0.70, '88,28,135', 0.02], [1, '88,28,135', 0]
+    ]);
+
+    ctx.globalCompositeOperation = 'source-over';
+    for (var j = 0; j < starData.length; j++) {
+      var st = starData[j];
+      if (st.s > 1.75) {
+        ctx.shadowBlur = st.s * 2.4;
+        ctx.shadowColor = 'rgba(255,255,255,0.55)';
+      } else {
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+      }
+      ctx.fillStyle = 'rgba(255,255,255,' + st.o.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(st.x * w, st.y * h, st.s / 2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+  }
+
+  var VERT = [
+    'attribute vec2 aPos;',
+    'varying vec2 vUv;',
+    'void main() {',
+    '  vUv = aPos * 0.5 + 0.5;',
+    '  gl_Position = vec4(aPos, 0.0, 1.0);',
+    '}'
+  ].join('\n');
+
+  var FRAG = [
+    'precision highp float;',
+    'uniform sampler2D uTex;',
+    'uniform vec2 uRes;',
+    'uniform float uTime;',
+    'uniform vec2 uOrigin;',
+    'uniform float uReveal;',
+    'uniform float uFrontMax;',
+    'varying vec2 vUv;',
+    'const float STAGGER = ' + STAGGER.toFixed(4) + ';',
+    'const float WAVE_DUR = ' + WAVE_DUR.toFixed(4) + ';',
+    'const float FREQ = ' + FREQ.toFixed(5) + ';',
+    'const float SHARP = ' + SHARP.toFixed(5) + ';',
+    'const float AMP = 34.0;',
+    'void main() {',
+    '  vec2 px = vUv * uRes;',
+    '  vec2 delta = px - uOrigin * uRes;',
+    '  float d = length(delta);',
+    '  vec2 dir = d > 0.001 ? delta / d : vec2(0.0);',
+    '  float sum = 0.0;',
+    '  for (int i = 0; i < ' + WAVE_COUNT + '; i++) {',
+    '    float lt = uTime - float(i) * STAGGER;',
+    '    float active = step(0.0, lt) * step(lt, WAVE_DUR);',
+    '    float p = clamp(lt / WAVE_DUR, 0.0, 1.0);',
+    '    float front = (1.0 - pow(1.0 - p, 4.0)) * uFrontMax;',
+    '    float o = d - front;',
+    '    sum += active * sin(o * FREQ) * exp(-abs(o) * SHARP) * pow(1.0 - p, 1.1);',
+    '  }',
+    '  float amp = AMP * exp(-d / (length(uRes) * 0.45));',
+    '  vec2 uv = clamp(vUv + dir * (amp * sum) / uRes, 0.0, 1.0);',
+    '  vec3 galaxy = texture2D(uTex, uv).rgb;',
+    '  float m = 1.0 - smoothstep(uReveal - 3.0, uReveal + 3.0, d);',
+    '  gl_FragColor = vec4(mix(vec3(1.0), galaxy, m), 1.0);',
+    '}'
+  ].join('\n');
+
+  var gl = null;
+  var prog = null;
+  var tex = null;
+  var loc = {};
+
+  function compile(type, src) {
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) return null;
+    return sh;
+  }
+
+  function initGL() {
+    var opts = { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true };
+    try {
+      gl = display.getContext('webgl', opts) || display.getContext('experimental-webgl', opts);
+    } catch (e) {
+      gl = null;
+    }
+    if (!gl) return false;
+
+    var vs = compile(gl.VERTEX_SHADER, VERT);
+    var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+    if (!vs || !fs) return false;
+
+    prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+    gl.useProgram(prog);
+
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    var aPos = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    loc.uTex = gl.getUniformLocation(prog, 'uTex');
+    loc.uRes = gl.getUniformLocation(prog, 'uRes');
+    loc.uTime = gl.getUniformLocation(prog, 'uTime');
+    loc.uOrigin = gl.getUniformLocation(prog, 'uOrigin');
+    loc.uReveal = gl.getUniformLocation(prog, 'uReveal');
+    loc.uFrontMax = gl.getUniformLocation(prog, 'uFrontMax');
+
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(loc.uTex, 0);
+    return true;
+  }
+
+  var useGL = initGL();
+
+  var vw = 0, vh = 0;
+  var origin = [0.5, 0.5];
+  var frontMax = 0;
+  var revealPx = 0;
+  var elapsed = 0;
+
+  function paintGL() {
+    gl.uniform2f(loc.uRes, vw, vh);
+    gl.uniform2f(loc.uOrigin, origin[0], origin[1]);
+    gl.uniform1f(loc.uTime, elapsed);
+    gl.uniform1f(loc.uReveal, revealPx);
+    gl.uniform1f(loc.uFrontMax, frontMax);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function build() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var dpr = window.devicePixelRatio || 1;
+    vw = w;
+    vh = h;
+
+    off.width = Math.round(w * dpr);
+    off.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawGalaxy(w, h);
+
+    display.style.width = w + 'px';
+    display.style.height = h + 'px';
+    display.width = Math.round(w * dpr);
+    display.height = Math.round(h * dpr);
+
+    if (useGL) {
+      gl.viewport(0, 0, display.width, display.height);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, off);
+      paintGL();
+    } else {
+      display.getContext('2d').drawImage(off, 0, 0);
+    }
+  }
+
+  if (!useGL) display.classList.add('clipped');
+  build();
+
+  function bezier(x1, y1, x2, y2) {
+    function cx(t) { return 3.0 * (1.0 - t) * (1.0 - t) * t * x1 + 3.0 * (1.0 - t) * t * t * x2 + t * t * t; }
+    function cy(t) { return 3.0 * (1.0 - t) * (1.0 - t) * t * y1 + 3.0 * (1.0 - t) * t * t * y2 + t * t * t; }
+    return function (x) {
+      var lo = 0, hi = 1, t = x;
+      for (var k = 0; k < 30; k++) { t = (lo + hi) / 2; if (cx(t) < x) lo = t; else hi = t; }
+      return cy(t);
+    };
+  }
+  var revealEase = bezier(0.33, 1, 0.68, 1);
+
+  function warpAt(t) {
+    var sum = 0;
+    for (var i = 0; i < WAVE_COUNT; i++) {
+      var lt = t - i * STAGGER;
+      if (lt < 0 || lt > WAVE_DUR) continue;
+      var p = lt / WAVE_DUR;
+      var front = (1 - Math.pow(1 - p, 4)) * frontMax;
+      sum += Math.sin(-front * FREQ) * Math.exp(-front * SHARP) * Math.pow(1 - p, 1.1);
+    }
+    return sum;
+  }
+
+  var animating = false;
+  var pendingResize = false;
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (animating) { pendingResize = true; return; }
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(build, 150);
+  });
 
   var fired = false;
   button.addEventListener('click', function () {
     if (fired) return;
     fired = true;
+    animating = true;
 
     var r = button.getBoundingClientRect();
     var cx = r.left + r.width / 2;
     var cy = r.top + r.height / 2;
-    var w = window.innerWidth;
-    var h = window.innerHeight;
-    var radius = Math.max(
+    var corner = Math.max(
       Math.sqrt(cx * cx + cy * cy),
-      Math.sqrt((w - cx) * (w - cx) + cy * cy),
-      Math.sqrt(cx * cx + (h - cy) * (h - cy)),
-      Math.sqrt((w - cx) * (w - cx) + (h - cy) * (h - cy))
-    ) * 1.08;
+      Math.sqrt((vw - cx) * (vw - cx) + cy * cy),
+      Math.sqrt(cx * cx + (vh - cy) * (vh - cy)),
+      Math.sqrt((vw - cx) * (vw - cx) + (vh - cy) * (vh - cy))
+    );
+    var galaxyRadius = corner * 1.08;
+    frontMax = corner * 1.15;
+    origin = [cx / vw, 1 - cy / vh];
 
-    var start = 'circle(0px at ' + cx + 'px ' + cy + 'px)';
-    var end = 'circle(' + radius + 'px at ' + cx + 'px ' + cy + 'px)';
+    button.classList.add('dissolving');
 
-    galaxy.style.webkitClipPath = start;
-    galaxy.style.clipPath = start;
-    galaxy.classList.add('revealing');
+    if (!useGL) {
+      var start = 'circle(0px at ' + cx + 'px ' + cy + 'px)';
+      var end = 'circle(' + galaxyRadius + 'px at ' + cx + 'px ' + cy + 'px)';
+      display.style.webkitClipPath = start;
+      display.style.clipPath = start;
+      display.classList.add('revealing');
+      setTimeout(function () {
+        display.style.webkitClipPath = end;
+        display.style.clipPath = end;
+      }, GALAXY_DELAY);
+    }
 
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        galaxy.style.webkitClipPath = end;
-        galaxy.style.clipPath = end;
-        button.classList.add('dissolving');
-      });
-    });
+    var t0 = null;
+    function frame(now) {
+      if (t0 === null) t0 = now;
+      var ms = now - t0;
+      elapsed = ms / 1000;
+
+      var gp = Math.min(1, Math.max(0, (ms - GALAXY_DELAY) / GALAXY_DURATION));
+      revealPx = revealEase(gp) * galaxyRadius;
+
+      var s = warpAt(elapsed);
+      button.style.transform = 'scale(' + (1 - WARP_K * s).toFixed(5) + ',' + (1 + WARP_K * s).toFixed(5) + ')';
+
+      if (useGL) paintGL();
+      if (ms < END) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
 
     setTimeout(function () {
       if (button.parentNode) button.parentNode.removeChild(button);
-      galaxy.classList.remove('revealing');
-      galaxy.style.webkitClipPath = 'none';
-      galaxy.style.clipPath = 'none';
+      if (!useGL) {
+        display.classList.remove('revealing');
+        display.classList.remove('clipped');
+        display.style.webkitClipPath = 'none';
+        display.style.clipPath = 'none';
+      }
       document.documentElement.style.background = '#03020a';
       document.body.style.background = '#03020a';
-    }, 2600);
+      animating = false;
+      if (pendingResize) { pendingResize = false; build(); }
+    }, END);
   });
 })();
 </script>
