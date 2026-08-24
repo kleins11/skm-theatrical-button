@@ -17,8 +17,82 @@
     cursor: default;
     user-select: none;
     -webkit-user-select: none;
+    overflow: hidden;
+  }
+  #galaxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 130% 95% at 50% 36%, #171040 0%, #0e0a28 38%, #070518 64%, #03020a 100%);
+    -webkit-clip-path: circle(0px at 50% 50%);
+    clip-path: circle(0px at 50% 50%);
+  }
+  #galaxy.revealing {
+    transition: -webkit-clip-path 2500ms cubic-bezier(0.16, 1, 0.3, 1),
+                clip-path 2500ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .neb {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: screen;
+  }
+  #neb1 {
+    left: 26%;
+    top: 33%;
+    width: 72vmax;
+    height: 72vmax;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(139, 92, 246, 0.26) 0%,
+      rgba(109, 40, 217, 0.14) 24%,
+      rgba(76, 29, 149, 0.05) 46%,
+      rgba(49, 20, 99, 0.015) 64%,
+      rgba(0, 0, 0, 0) 76%);
+  }
+  #neb2 {
+    left: 77%;
+    top: 73%;
+    width: 62vmax;
+    height: 62vmax;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(45, 212, 191, 0.19) 0%,
+      rgba(20, 184, 166, 0.10) 26%,
+      rgba(13, 148, 136, 0.035) 48%,
+      rgba(8, 90, 84, 0.01) 66%,
+      rgba(0, 0, 0, 0) 78%);
+  }
+  #neb3 {
+    left: 62%;
+    top: 13%;
+    width: 44vmax;
+    height: 44vmax;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(168, 85, 247, 0.14) 0%,
+      rgba(126, 34, 206, 0.07) 30%,
+      rgba(88, 28, 135, 0.02) 54%,
+      rgba(0, 0, 0, 0) 74%);
+  }
+  #stars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  #stars i {
+    position: absolute;
+    display: block;
+    background: #ffffff;
+    border-radius: 50%;
   }
   button {
+    position: relative;
+    z-index: 2;
     width: 160px;
     height: 48px;
     padding: 0;
@@ -36,11 +110,89 @@
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     box-shadow: 0 3px 1px -2px rgba(0,0,0,0.2), 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12);
+  }
+  button.dissolving {
+    opacity: 0;
+    filter: blur(6px);
+    transition: opacity 1500ms cubic-bezier(0.33, 0, 0.67, 1),
+                filter 1500ms cubic-bezier(0.33, 0, 0.67, 1);
   }
 </style>
 </head>
 <body>
+<div id="galaxy">
+  <div class="neb" id="neb1"></div>
+  <div class="neb" id="neb2"></div>
+  <div class="neb" id="neb3"></div>
+  <div id="stars"></div>
+</div>
 <button type="button">Continue</button>
+<script>
+(function () {
+  var galaxy = document.getElementById('galaxy');
+  var stars = document.getElementById('stars');
+  var button = document.querySelector('button');
+
+  var parts = [];
+  for (var i = 0; i < 340; i++) {
+    var s = 0.5 + Math.random() * Math.random() * 2.1;
+    var o = 0.22 + Math.random() * 0.78;
+    var x = Math.random() * 100;
+    var y = Math.random() * 100;
+    var glow = s > 1.75
+      ? ';box-shadow:0 0 ' + (s * 2.4).toFixed(2) + 'px ' + (s * 0.5).toFixed(2) + 'px rgba(255,255,255,0.55)'
+      : '';
+    parts.push(
+      '<i style="left:' + x.toFixed(3) + '%;top:' + y.toFixed(3) + '%;width:' +
+      s.toFixed(2) + 'px;height:' + s.toFixed(2) + 'px;opacity:' + o.toFixed(2) + glow + '"></i>'
+    );
+  }
+  stars.innerHTML = parts.join('');
+
+  var fired = false;
+  button.addEventListener('click', function () {
+    if (fired) return;
+    fired = true;
+
+    var r = button.getBoundingClientRect();
+    var cx = r.left + r.width / 2;
+    var cy = r.top + r.height / 2;
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var radius = Math.max(
+      Math.sqrt(cx * cx + cy * cy),
+      Math.sqrt((w - cx) * (w - cx) + cy * cy),
+      Math.sqrt(cx * cx + (h - cy) * (h - cy)),
+      Math.sqrt((w - cx) * (w - cx) + (h - cy) * (h - cy))
+    ) * 1.08;
+
+    var start = 'circle(0px at ' + cx + 'px ' + cy + 'px)';
+    var end = 'circle(' + radius + 'px at ' + cx + 'px ' + cy + 'px)';
+
+    galaxy.style.webkitClipPath = start;
+    galaxy.style.clipPath = start;
+    galaxy.classList.add('revealing');
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        galaxy.style.webkitClipPath = end;
+        galaxy.style.clipPath = end;
+        button.classList.add('dissolving');
+      });
+    });
+
+    setTimeout(function () {
+      if (button.parentNode) button.parentNode.removeChild(button);
+      galaxy.classList.remove('revealing');
+      galaxy.style.webkitClipPath = 'none';
+      galaxy.style.clipPath = 'none';
+      document.documentElement.style.background = '#03020a';
+      document.body.style.background = '#03020a';
+    }, 2600);
+  });
+})();
+</script>
 </body>
 </html>
